@@ -1,10 +1,17 @@
 import { AppComboBox } from "./app-como-box";
-import { ChevronDown, RefreshCw, Loader, Copy, Check } from "lucide-react";
+import {
+	ChevronDown,
+	RefreshCw,
+	Loader,
+	Copy,
+	Check,
+	Play,
+} from "lucide-react";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Textarea } from "./ui/textarea";
 import useTranslate from "@/stores/translate";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
 	Tooltip,
 	TooltipContent,
@@ -29,9 +36,14 @@ const TranslatorApp = () => {
 	);
 	const getTranslateData = useTranslate((state) => state.getTranslateData);
 	const swapLanguages = useTranslate((state) => state.swapLanguages);
-	const inputTextarea = useRef<HTMLTextAreaElement | null>(null);
-	const translateTextarea = useRef<HTMLTextAreaElement | null>(null);
+	const inputTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+	const translateTextareaRef = useRef<HTMLTextAreaElement | null>(null);
 	const [isClipboardClicked, setIsClipboardClicked] = useState(false);
+	const voices = useMemo(() => {
+		return speechSynthesis
+			.getVoices()
+			.filter((voice) => voice.lang === secondLanguage.value);
+	}, [secondLanguage]);
 
 	useEffect(() => {
 		if (error) {
@@ -40,26 +52,26 @@ const TranslatorApp = () => {
 	}, [error]);
 
 	const translateButtonClickHandler = async () => {
-		if (inputTextarea.current) {
-			const { value: query } = inputTextarea.current;
+		if (inputTextareaRef.current) {
+			const { value: query } = inputTextareaRef.current;
 			const data = await getTranslateData(query);
 			const error = useTranslate.getState().error;
-			if (!error && translateTextarea.current) {
+			if (!error && translateTextareaRef.current) {
 				const translatedText = data?.responseData.translatedText;
-				translateTextarea.current.value = translatedText
+				translateTextareaRef.current.value = translatedText
 					? decodeURI(translatedText)
 					: "";
-			} else if (error && !!translateTextarea.current) {
-				translateTextarea.current.value = "";
+			} else if (error && !!translateTextareaRef.current) {
+				translateTextareaRef.current.value = "";
 			}
 		}
 	};
 	const swapLanguageHandler = () => {
 		swapLanguages();
-		if (inputTextarea.current && translateTextarea.current) {
-			const translateTextareaValue = translateTextarea.current.value;
-			const inputTextareaValue = inputTextarea.current.value;
-			[inputTextarea.current.value, translateTextarea.current.value] = [
+		if (inputTextareaRef.current && translateTextareaRef.current) {
+			const translateTextareaValue = translateTextareaRef.current.value;
+			const inputTextareaValue = inputTextareaRef.current.value;
+			[inputTextareaRef.current.value, translateTextareaRef.current.value] = [
 				translateTextareaValue,
 				inputTextareaValue,
 			];
@@ -74,6 +86,17 @@ const TranslatorApp = () => {
 			setTimeout(() => {
 				setIsClipboardClicked(false);
 			}, 5000);
+		}
+	};
+
+	const playPronunciationAudio = () => {
+		if (voices.length > 0 && translateTextareaRef.current) {
+			const { value } = translateTextareaRef.current;
+			if (value.length > 0) {
+				const message = new SpeechSynthesisUtterance(value);
+				message.voice = voices[0];
+				speechSynthesis.speak(message);
+			}
 		}
 	};
 	return (
@@ -108,7 +131,7 @@ const TranslatorApp = () => {
 						</div>
 						<Textarea
 							placeholder="Enter text"
-							ref={inputTextarea}
+							ref={inputTextareaRef}
 							dir={firstLanguage.dir}
 							className="placeholder:text-left text-sm sm:text-base"
 						/>
@@ -124,28 +147,48 @@ const TranslatorApp = () => {
 						<Textarea
 							placeholder="Translation"
 							readOnly
-							ref={translateTextarea}
+							ref={translateTextareaRef}
 							dir={secondLanguage.dir}
 							className="placeholder:text-left text-sm sm:text-base relative"
 						/>
-						<TooltipProvider>
-							<Tooltip>
-								<TooltipTrigger asChild>
-									{translateData && (
-										<Button
-											variant="outline"
-											size="icon"
-											onClick={copyToClipboard}
-										>
-											{isClipboardClicked ? <Check /> : <Copy />}
-										</Button>
-									)}
-								</TooltipTrigger>
-								<TooltipContent>
-									<p>Copy to clipboard</p>
-								</TooltipContent>
-							</Tooltip>
-						</TooltipProvider>
+						<div className="flex  justify-between">
+							<TooltipProvider>
+								<Tooltip>
+									<TooltipTrigger asChild>
+										{translateData && (
+											<Button
+												variant="outline"
+												size="icon"
+												onClick={copyToClipboard}
+											>
+												{isClipboardClicked ? <Check /> : <Copy />}
+											</Button>
+										)}
+									</TooltipTrigger>
+									<TooltipContent>
+										<p>Copy to clipboard</p>
+									</TooltipContent>
+								</Tooltip>
+							</TooltipProvider>
+							<TooltipProvider>
+								<Tooltip>
+									<TooltipTrigger asChild>
+										{translateData && voices.length > 0 && (
+											<Button
+												variant="outline"
+												size="icon"
+												onClick={playPronunciationAudio}
+											>
+												<Play />
+											</Button>
+										)}
+									</TooltipTrigger>
+									<TooltipContent>
+										<p>Play pronunciation</p>
+									</TooltipContent>
+								</Tooltip>
+							</TooltipProvider>
+						</div>
 					</CardContent>
 				</Card>
 			</section>
